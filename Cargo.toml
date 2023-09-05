@@ -1,0 +1,17 @@
+[package]
+name = "etherpad-plugin-data-extractor"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clokwerk= "0.4.0"
+serde = {version="1.0.155", features = ["derive"]}
+reqwest = {version="0.11.14", features = ["blocking", "json", "async-compression", "rustls"]}
+chrono = { version = "0.4", default-features = false, features = ["serde"] }
+libsqlite3-sys = {version = "0.26.0", features = ["bundled"], optional = true}
+diesel_migrations = "2.0.0"
+actix-web = {version="4.3.0", features=["rustls"]}
+diesel = { version = "2.1.1", features = ["chrono", "r2d2","sqlite","returning_clauses_for_sqlite_3_35"] }
+serde_json = {version="1.0.104"}
