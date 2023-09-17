@@ -43,11 +43,12 @@ impl Keyword{
             .get_result(conn)
     }
 
-    pub fn delete(keyword_to_delete : Keyword, conn: &mut SqliteConnection) -> Result<usize,
+    pub fn delete(version_id_to_delete:String, conn: &mut SqliteConnection) -> Result<usize,
         diesel::result::Error> {
         use crate::schema::keywords::dsl::*;
+
         diesel::delete(keywords)
-            .filter(keyword.eq(keyword_to_delete.keyword.clone()))
+            .filter(version_id.eq(version_id_to_delete))
             .execute(conn)
     }
 

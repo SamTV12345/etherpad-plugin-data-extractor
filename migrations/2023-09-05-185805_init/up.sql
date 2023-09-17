@@ -14,9 +14,9 @@ CREATE TABLE datas(
   _id TEXT NOT NULL,
   _rev TEXT NOT NULL,
   name TEXT NOT NULL,
-  license TEXT NOT NULL,
+  license TEXT,
   downloads INTEGER NOT NULL,
-  FOREIGN KEY (plugin_name) REFERENCES plugin(name)
+  FOREIGN KEY (plugin_name) REFERENCES plugins(name)
 );
 
 CREATE TABLE versions(
@@ -28,9 +28,9 @@ CREATE TABLE versions(
     time DATETIME NOT NULL,
     author_name TEXT NOT NULL,
     author_email TEXT NOT NULL,
-    license TEXT NOT NULL,
-    repository_type TEXT NOT NULL,
-    repository_url TEXT NOT NULL,
+    license TEXT,
+    repository_type TEXT,
+    repository_url TEXT,
     FOREIGN KEY (data_id) REFERENCES datas(id)
 );
 

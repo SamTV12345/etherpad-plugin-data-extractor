@@ -3,7 +3,7 @@ use diesel::{Insertable, Queryable, QueryableByName, RunQueryDsl, SqliteConnecti
              ExpressionMethods, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use crate::schema::datas;
-use diesel::sql_types::{Integer,Text};
+use diesel::sql_types::{Integer,Text, Nullable};
 
 #[derive(Serialize, Deserialize, Queryable,Insertable, AsChangeset, QueryableByName, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -20,14 +20,15 @@ pub struct Data {
     pub _rev: String,
     #[diesel(sql_type = Text)]
     pub name: String,
-    #[diesel(sql_type = Text)]
-    pub license: String,
+    #[diesel(sql_type = Nullable<Text>)]
+    pub license: Option<String>,
     #[diesel(sql_type = Integer)]
     pub downloads: i32
 }
 
 impl Data {
-    pub fn new(id: String, plugin_name: String, _id: String, _rev: String, name: String, license: String, downloads: i32) -> Data {
+    pub fn new(id: String, plugin_name: String, _id: String, _rev: String, name: String, license:
+    Option<String>, downloads: i32) -> Data {
         Data {
             id,
             plugin_name,
@@ -67,5 +68,12 @@ impl Data {
             .first::<Data>(conn)
             .optional()
             .unwrap()
+    }
+
+    pub fn delete_keywords(data_id_to_delete: String, conn: &mut SqliteConnection) -> Result<usize, diesel::result::Error> {
+        use crate::schema::keywords::dsl::*;
+        diesel::delete(keywords)
+            .filter(version_id.eq(data_id_to_delete))
+            .execute(conn)
     }
 }

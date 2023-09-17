@@ -1,10 +1,14 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
-use diesel::{Insertable, Queryable, QueryableByName, RunQueryDsl, SqliteConnection};
+use diesel::{Insertable, OptionalExtension, Queryable, QueryableByName, RunQueryDsl, SqliteConnection};
 use serde::{Deserialize, Serialize};
 use crate::entities::data::Data;
 use crate::schema::versions;
-use diesel::sql_types::{Text, Timestamp,Bool};
+use diesel::sql_types::{Text, Timestamp,Bool, Nullable};
 use diesel::AsChangeset;
+use diesel::QueryDsl;
+use diesel::ExpressionMethods;
+
+
 #[derive(Serialize, Deserialize, Queryable,Insertable, AsChangeset, QueryableByName, Clone)]
 #[serde(rename_all = "camelCase")]
 #[diesel(belongs_to(Data))]
@@ -26,16 +30,19 @@ pub struct Version {
     pub author_name: String,
     #[diesel(sql_type = Text)]
     pub author_email: String,
-    #[diesel(sql_type = Text)]
-    pub license: String,
-    #[diesel(sql_type = Text)]
-    pub repository_type: String,
-    #[diesel(sql_type = Text)]
-    pub repository_url: String
+    #[diesel(sql_type = Nullable<Text>)]
+    pub license: Option<String>,
+    #[diesel(sql_type = Nullable<Text>)]
+    pub repository_type: Option<String>,
+    #[diesel(sql_type = Nullable<Text>)]
+    pub repository_url: Option<String>
 }
 
 impl Version{
-    pub fn new(id: String, data_id: String, name: String, version: String, description: String, time: NaiveDateTime, author_name: String, author_email: String, license: String, repository_type: String, repository_url: String) -> Version {
+    pub fn new(id: String, data_id: String, name: String, version: String, description: String,
+               time: NaiveDateTime, author_name: String, author_email: String, license:
+               Option<String>, repository_type: Option<String>, repository_url: Option<String>) ->
+                                                                                                       Version {
         Version {
             id,
             data_id,
@@ -70,5 +77,23 @@ impl Version{
     pub fn get_all(conn: &mut SqliteConnection) -> Result<Vec<Version>, diesel::result::Error> {
         use crate::schema::versions::dsl::*;
         versions.load::<Version>(conn)
+    }
+
+    pub fn get_by_id(id_to_search: String, conn: &mut SqliteConnection) -> Option<Version> {
+        use crate::schema::versions::dsl::*;
+        use crate::schema::versions::dsl::id as v_id;
+        versions.filter(v_id.eq(id_to_search))
+            .first::<Version>(conn)
+            .optional()
+            .unwrap()
+    }
+
+    pub fn get_by_name(name_to_search: String, conn: &mut SqliteConnection) -> Option<Version> {
+        use crate::schema::versions::dsl::*;
+        use crate::schema::versions::dsl::name as v_name;
+        versions.filter(v_name.eq(name_to_search))
+            .first::<Version>(conn)
+            .optional()
+            .unwrap()
     }
 }

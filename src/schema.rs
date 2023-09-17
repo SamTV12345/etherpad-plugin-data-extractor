@@ -7,7 +7,7 @@ diesel::table! {
         _id -> Text,
         _rev -> Text,
         name -> Text,
-        license -> Text,
+        license -> Nullable<Text>,
         downloads -> Integer,
     }
 }
@@ -40,12 +40,13 @@ diesel::table! {
         time -> Timestamp,
         author_name -> Text,
         author_email -> Text,
-        license -> Text,
-        repository_type -> Text,
-        repository_url -> Text,
+        license -> Nullable<Text>,
+        repository_type -> Nullable<Text>,
+        repository_url -> Nullable<Text>,
     }
 }
 
+diesel::joinable!(datas -> plugins (plugin_name));
 diesel::joinable!(keywords -> versions (version_id));
 diesel::joinable!(versions -> datas (data_id));
 
