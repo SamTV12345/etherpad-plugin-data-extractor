@@ -1,5 +1,6 @@
 use std::collections::{HashMap};
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+use diesel::SqliteConnection;
 use serde::Deserialize;
 use serde_json::Value;
 use crate::entities::plugin::Plugin as PluginEntity;
@@ -31,26 +32,24 @@ pub fn download_current_plugins(){
 
         match PluginEntity::get_by_name(key.to_string(), conn) {
             Some(p)=>{
-            let updated_plugin = PluginEntity::update(plugin_to_insert, &mut
-            crate::db::establish_connection()).unwrap();
+            let updated_plugin = PluginEntity::update(plugin_to_insert, conn).unwrap();
 
-            let inserted_data = insert_or_update_data_entity(updated_plugin.clone(), data_entity
-                .clone());
+            let inserted_data = insert_or_update_data_entity(updated_plugin.clone(),
+                                                             data_entity.clone(), conn);
             if inserted_data.is_ok() {
                 insert_or_update_version_entities(updated_plugin.clone(), inserted_data.unwrap(),
-                                                  data_to_insert.versions.clone());
+                                                  data_to_insert.versions.clone(), conn);
             }
 
             return;
         },
             None=>{
-                let plugin_inserted  = PluginEntity::insert(plugin_to_insert, &mut
-                    crate::db::establish_connection()).unwrap();
+                let plugin_inserted  = PluginEntity::insert(plugin_to_insert, conn).unwrap();
                 let inserted_data = insert_or_update_data_entity(plugin_inserted.clone(),
-                                                                 data_entity.clone());
+                                                                 data_entity.clone(), conn);
                 if inserted_data.is_ok(){
                     insert_or_update_version_entities(plugin_inserted.clone(), inserted_data
-                        .unwrap(), data_to_insert.versions.clone());
+                        .unwrap(), data_to_insert.versions.clone(), conn);
                 }
             }
         }
@@ -59,18 +58,16 @@ pub fn download_current_plugins(){
 
 
 fn insert_or_update_data_entity(updated_plugin: crate::entities::plugin::Plugin, data_entity:
-DataEntity) -> Result<crate::entities::data::Data, ()>{
+DataEntity, conn: &mut SqliteConnection) -> Result<crate::entities::data::Data, ()>{
     match DataEntity::get_by_name(updated_plugin.name.clone(), &mut
         crate::db::establish_connection()){
         Some(..) => {
             let data_updated = DataEntity::update(data_entity, updated_plugin.name
-                .clone(),
-                                                  &mut crate::db::establish_connection()).unwrap();
+                .clone(), conn).unwrap();
             Ok(data_updated)
         },
         None => {
-            let data_inserted = DataEntity::insert(data_entity,
-                                                   &mut crate::db::establish_connection()).unwrap();
+            let data_inserted = DataEntity::insert(data_entity, conn).unwrap();
             return Ok(data_inserted)
         }
     }
@@ -79,11 +76,13 @@ DataEntity) -> Result<crate::entities::data::Data, ()>{
 
 fn insert_or_update_version_entities(updated_plugin: crate::entities::plugin::Plugin,
                                      data_to_insert: crate::entities::data::Data,
-                                     versions: Option<HashMap<String, Version>>) {
+                                     versions: Option<HashMap<String, Version>>,
+                                     conn: &mut SqliteConnection) {
    if let Some(map) = versions{
        map.iter().for_each(|(_,val)|{
 
-           let mut time = NaiveDateTime::new(NaiveDate::from_ymd(1970, 1, 1), NaiveTime::from_hms(0, 0, 0));
+           let mut time = NaiveDateTime::new(NaiveDate::from_ymd_opt(1970, 1, 1).unwrap(),
+                                             NaiveTime::from_hms_opt(0, 0, 0).unwrap());
            match val.time.clone() {
                 Some(..) => {
                     let time_1 = val.time.clone().unwrap().parse::<NaiveDate>().unwrap();
@@ -94,14 +93,7 @@ fn insert_or_update_version_entities(updated_plugin: crate::entities::plugin::Pl
                 }
            }
 
-
-              /*let name = val.author.clone()
-                  .unwrap().name
-                  .unwrap_or("".to_string());
-                let email = val.author.clone()
-                  .unwrap().email
-                  .unwrap_or("".to_string());
-               */
+            let (name, email) = get_author_info(&val.author);
             let mut opt_rep_type = None;
             let mut opt_rep_url = None;
 
@@ -120,40 +112,63 @@ fn insert_or_update_version_entities(updated_plugin: crate::entities::plugin::Pl
                                                                             val.version.clone().unwrap(),
                                                                             val.description.clone().unwrap(),
                                                                              time,
-                                                                            "".to_string(),
-                                                                            "".to_string(),
+                                                                             name,
+                                                                             email,
                                                                             val.license.clone(),
                                                                             opt_rep_type,
                                                                             opt_rep_url);
-              match crate::entities::version::Version::get_by_id(key, &mut
-                crate::db::establish_connection()){
+              match crate::entities::version::Version::get_by_id(key, conn){
                 Some(..) => {
-                     let version_updated = crate::entities::version::Version::update(version_to_insert,
-                                                                                      &mut crate::db::establish_connection()).unwrap();
-                     insert_or_update_keyword_entities(version_updated.clone(), val.clone()).unwrap();
+                    let key = get_version_key(updated_plugin.name.clone(),
+                                              val
+                                                  .version.clone().unwrap());
+                     let version_updated = crate::entities::version::Version::update
+                         (version_to_insert, conn, key);
+                     insert_or_update_keyword_entities(version_updated.clone(), val.clone(), conn);
                 },
                 None => {
-                     let version_inserted = crate::entities::version::Version::insert(version_to_insert,
-                            &mut crate::db::establish_connection()).unwrap();
-                     insert_or_update_keyword_entities(version_inserted.clone(), val.clone()).unwrap();
+                     let version_inserted = crate::entities::version::Version::insert(version_to_insert, conn).unwrap();
+                     insert_or_update_keyword_entities(version_inserted.clone(), val.clone(), conn)
+                         .unwrap();
                 }
               }
          })
        }
    }
 
-fn insert_or_update_keyword_entities(version: crate::entities::version::Version, val: Version) ->
+fn insert_or_update_keyword_entities(version: crate::entities::version::Version, val: Version,
+                                     conn: &mut SqliteConnection) ->
                                                                                                Result<(), ()>{
-    Keyword::delete(version.id.clone(), &mut crate::db::establish_connection()).unwrap();
+    Keyword::delete(version.id.clone(), conn).unwrap();
     if let Some(keywords) = val.keywords{
         keywords.iter().for_each(|keyword|{
             let keyword_to_insert = Keyword::new(Uuid::new_v4().to_string(),
                                                                            version.id.clone(),
                                                                             keyword.clone());
-            Keyword::insert(keyword_to_insert, &mut crate::db::establish_connection()).unwrap();
+            Keyword::insert(keyword_to_insert, conn).unwrap();
         });
     }
     Ok(())
+}
+
+
+fn get_author_info(option: &Option<AuthorType>) -> (String, String) {
+    return match option {
+        Some(AuthorType::Author(author)) => {
+            return (author.name.clone().unwrap_or("".to_string()), author.email.clone().unwrap_or(""
+                .to_string()))
+        },
+        Some(AuthorType::AuthorString(author)) => {
+            let author_split = author.split("<").collect::<Vec<&str>>();
+            if author_split.len() > 1 {
+                return (author_split[0].to_string(), author_split[1].to_string().replace(">", ""))
+            }
+            (author_split[0].to_string(), "".to_string())
+        },
+        None => {
+            ("".to_string(), "".to_string())
+        }
+    }
 }
 
 fn get_version_key(plugin_name: String, version_tag: String) -> String{

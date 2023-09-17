@@ -66,12 +66,14 @@ impl Version{
             .get_result(conn)
     }
 
-    pub fn update(version_to_insert : Version, conn: &mut SqliteConnection) -> Result<Version,
-        diesel::result::Error> {
+    pub fn update(version_to_insert : Version, conn: &mut SqliteConnection, key: String) ->
+                                                                                         Version {
         use crate::schema::versions::dsl::*;
         diesel::update(versions)
-            .set(version_to_insert)
-            .get_result(conn)
+            .filter(id.eq(key))
+                        .set(version_to_insert)
+                        .get_result::<Version>(conn)
+            .unwrap()
     }
 
     pub fn get_all(conn: &mut SqliteConnection) -> Result<Vec<Version>, diesel::result::Error> {
