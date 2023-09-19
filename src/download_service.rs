@@ -1,12 +1,11 @@
 use std::collections::{HashMap};
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
-use diesel::SqliteConnection;
+use diesel::PgConnection;
 use serde::Deserialize;
 use serde_json::Value;
 use crate::entities::plugin::Plugin as PluginEntity;
 use crate::entities::data::Data as DataEntity;
 use uuid::Uuid;
-use crate::entities::keyword::Keyword;
 
 pub fn download_current_plugins(){
     let download_url = std::env::var("DOWNLOAD_URL")
@@ -38,7 +37,7 @@ pub fn download_current_plugins(){
                                                              data_entity.clone(), conn);
             if inserted_data.is_ok() {
                 insert_or_update_version_entities(updated_plugin.clone(), inserted_data.unwrap(),
-                                                  data_to_insert.versions.clone(), conn);
+                                                  data_to_insert.versions.clone(), conn, data_to_insert.readme.clone());
             }
 
             return;
@@ -49,7 +48,7 @@ pub fn download_current_plugins(){
                                                                  data_entity.clone(), conn);
                 if inserted_data.is_ok(){
                     insert_or_update_version_entities(plugin_inserted.clone(), inserted_data
-                        .unwrap(), data_to_insert.versions.clone(), conn);
+                        .unwrap(), data_to_insert.versions.clone(), conn, data_to_insert.readme.clone());
                 }
             }
         }
@@ -58,7 +57,7 @@ pub fn download_current_plugins(){
 
 
 fn insert_or_update_data_entity(updated_plugin: crate::entities::plugin::Plugin, data_entity:
-DataEntity, conn: &mut SqliteConnection) -> Result<crate::entities::data::Data, ()>{
+DataEntity, conn: &mut PgConnection) -> Result<crate::entities::data::Data, ()>{
     match DataEntity::get_by_name(updated_plugin.name.clone(), &mut
         crate::db::establish_connection()){
         Some(..) => {
@@ -77,7 +76,8 @@ DataEntity, conn: &mut SqliteConnection) -> Result<crate::entities::data::Data, 
 fn insert_or_update_version_entities(updated_plugin: crate::entities::plugin::Plugin,
                                      data_to_insert: crate::entities::data::Data,
                                      versions: Option<HashMap<String, Version>>,
-                                     conn: &mut SqliteConnection) {
+                                     conn: &mut PgConnection,
+                                     readme: Option<String>) {
    if let Some(map) = versions{
        map.iter().for_each(|(_,val)|{
 
@@ -104,6 +104,7 @@ fn insert_or_update_version_entities(updated_plugin: crate::entities::plugin::Pl
            let key = get_version_key(updated_plugin.name.clone(),
                            val
                                .version.clone().unwrap());
+           let opt_version_image = get_image_from_readme(readme.clone());
               let version_to_insert = crate::entities::version::Version::new(get_version_key(updated_plugin.name.clone(),
                                                                                              val
                                                                                                  .version.clone().unwrap()),
@@ -116,40 +117,25 @@ fn insert_or_update_version_entities(updated_plugin: crate::entities::plugin::Pl
                                                                              email,
                                                                             val.license.clone(),
                                                                             opt_rep_type,
-                                                                            opt_rep_url);
+                                                                            opt_rep_url,
+              Some(val.keywords.clone().unwrap_or(vec![]).join(",")),
+                                                                             opt_version_image,
+                                                                             readme.clone()
+              );
               match crate::entities::version::Version::get_by_id(key, conn){
                 Some(..) => {
                     let key = get_version_key(updated_plugin.name.clone(),
                                               val
                                                   .version.clone().unwrap());
-                     let version_updated = crate::entities::version::Version::update
-                         (version_to_insert, conn, key);
-                     insert_or_update_keyword_entities(version_updated.clone(), val.clone(), conn);
+                    crate::entities::version::Version::update(version_to_insert, conn, key);
                 },
                 None => {
-                     let version_inserted = crate::entities::version::Version::insert(version_to_insert, conn).unwrap();
-                     insert_or_update_keyword_entities(version_inserted.clone(), val.clone(), conn)
-                         .unwrap();
+                    crate::entities::version::Version::insert(version_to_insert, conn).unwrap();
                 }
               }
          })
        }
    }
-
-fn insert_or_update_keyword_entities(version: crate::entities::version::Version, val: Version,
-                                     conn: &mut SqliteConnection) ->
-                                                                                               Result<(), ()>{
-    Keyword::delete(version.id.clone(), conn).unwrap();
-    if let Some(keywords) = val.keywords{
-        keywords.iter().for_each(|keyword|{
-            let keyword_to_insert = Keyword::new(Uuid::new_v4().to_string(),
-                                                                           version.id.clone(),
-                                                                            keyword.clone());
-            Keyword::insert(keyword_to_insert, conn).unwrap();
-        });
-    }
-    Ok(())
-}
 
 
 fn get_author_info(option: &Option<AuthorType>) -> (String, String) {
@@ -169,6 +155,20 @@ fn get_author_info(option: &Option<AuthorType>) -> (String, String) {
             ("".to_string(), "".to_string())
         }
     }
+}
+
+
+fn get_image_from_readme(readme: Option<String>) -> Option<String> {
+    const REGEX: &str = "\\b(https?:\\/\\/[\\S]+?(?:png|jpe?g|gif))\\b";
+    let re = regex::Regex::new(REGEX).unwrap();
+    let mut image = None;
+    if let Some(readme) = readme {
+        let caps = re.captures(&readme);
+        if let Some(cap) = caps {
+            image = Some(cap.get(0).unwrap().as_str().to_string());
+        }
+    }
+    image
 }
 
 fn get_version_key(plugin_name: String, version_tag: String) -> String{
@@ -198,7 +198,8 @@ pub struct Data {
     #[serde(rename = "dist-tags")]
     dist_tags: Option<Value>,
     versions: Option<HashMap<String, Version>>,
-    license: Option<String>
+    license: Option<String>,
+    readme: Option<String>,
 }
 
 #[derive(Deserialize, Debug, Default, Clone)]

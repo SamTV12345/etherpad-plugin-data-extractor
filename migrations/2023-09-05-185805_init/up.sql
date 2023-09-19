@@ -2,7 +2,7 @@
 CREATE TABLE plugins(
     name TEXT NOT NULL PRIMARY KEY,
     description TEXT NOT NULL,
-    time DATETIME NOT NULL,
+    time timestamp NOT NULL,
     version TEXT NOT NULL,
     official BOOLEAN NOT NULL
 );
@@ -25,12 +25,15 @@ CREATE TABLE versions(
     name TEXT NOT NULL,
     version TEXT NOT NULL,
     description TEXT NOT NULL,
-    time DATETIME NOT NULL,
+    time timestamp NOT NULL,
     author_name TEXT NOT NULL,
     author_email TEXT NOT NULL,
     license TEXT,
     repository_type TEXT,
     repository_url TEXT,
+    keywords TEXT,
+    image TEXT,
+    readme TEXT,
     FOREIGN KEY (data_id) REFERENCES datas(id)
 );
 

@@ -11,8 +11,9 @@ serde = {version="1.0.155", features = ["derive"]}
 reqwest = {version="0.11.14", features = ["blocking", "json", "async-compression", "rustls"]}
 chrono = { version = "0.4", default-features = false, features = ["serde"] }
 libsqlite3-sys = {version = "0.26.0", features = ["bundled"], optional = true}
-diesel_migrations = "2.0.0"
+diesel_migrations = {version="2.0.0",features = ["postgres"]}
 actix-web = {version="4.3.0", features=["rustls"]}
-diesel = { version = "2.1.1", features = ["chrono", "r2d2","sqlite","returning_clauses_for_sqlite_3_35"] }
+diesel = { version = "2.1.1", features = ["chrono", "r2d2","postgres"] }
 serde_json = {version="1.0.104"}
-uuid = {version="0.8.2", features=["serde", "v4"]}
+uuid = {version= "1.4.1", features=["serde", "v4"]}
+regex = "1.9.5"

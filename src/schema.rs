@@ -8,7 +8,7 @@ diesel::table! {
         _rev -> Text,
         name -> Text,
         license -> Nullable<Text>,
-        downloads -> Integer,
+        downloads -> Int4,
     }
 }
 
@@ -43,6 +43,9 @@ diesel::table! {
         license -> Nullable<Text>,
         repository_type -> Nullable<Text>,
         repository_url -> Nullable<Text>,
+        keywords -> Nullable<Text>,
+        image -> Nullable<Text>,
+        readme -> Nullable<Text>,
     }
 }
 

@@ -2,4 +2,3 @@
 DROP TABLE plugins;
 DROP TABLE datas;
 DROP TABLE versions;
-DROP TABLE keywords;

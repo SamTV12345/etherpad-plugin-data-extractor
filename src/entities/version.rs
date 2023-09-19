@@ -1,5 +1,5 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
-use diesel::{Insertable, OptionalExtension, Queryable, QueryableByName, RunQueryDsl, SqliteConnection};
+use diesel::{Insertable, OptionalExtension, Queryable, QueryableByName, RunQueryDsl, PgConnection};
 use serde::{Deserialize, Serialize};
 use crate::entities::data::Data;
 use crate::schema::versions;
@@ -35,13 +35,20 @@ pub struct Version {
     #[diesel(sql_type = Nullable<Text>)]
     pub repository_type: Option<String>,
     #[diesel(sql_type = Nullable<Text>)]
-    pub repository_url: Option<String>
+    pub repository_url: Option<String>,
+    #[diesel(sql_type = Nullable<Text>)]
+    pub keywords: Option<String>,
+    #[diesel(sql_type = Nullable<Text>)]
+    pub image: Option<String>,
+    #[diesel(sql_type = Nullable<Text>)]
+    pub readme: Option<String>
 }
 
 impl Version{
     pub fn new(id: String, data_id: String, name: String, version: String, description: String,
                time: NaiveDateTime, author_name: String, author_email: String, license:
-               Option<String>, repository_type: Option<String>, repository_url: Option<String>) ->
+               Option<String>, repository_type: Option<String>, repository_url: Option<String>,
+               keywords: Option<String>, image: Option<String>, readme: Option<String>) ->
                                                                                                        Version {
         Version {
             id,
@@ -54,11 +61,14 @@ impl Version{
             author_email,
             license,
             repository_type,
-            repository_url
+            repository_url,
+            keywords,
+            image,
+            readme
         }
     }
 
-    pub fn insert(version_to_insert: Version, conn: &mut SqliteConnection) -> Result<Version,
+    pub fn insert(version_to_insert: Version, conn: &mut PgConnection) -> Result<Version,
         diesel::result::Error> {
         use crate::schema::versions::dsl::*;
         diesel::insert_into(versions)
@@ -66,7 +76,7 @@ impl Version{
             .get_result(conn)
     }
 
-    pub fn update(version_to_insert : Version, conn: &mut SqliteConnection, key: String) ->
+    pub fn update(version_to_insert : Version, conn: &mut PgConnection, key: String) ->
                                                                                          Version {
         use crate::schema::versions::dsl::*;
         diesel::update(versions)
@@ -76,12 +86,12 @@ impl Version{
             .unwrap()
     }
 
-    pub fn get_all(conn: &mut SqliteConnection) -> Result<Vec<Version>, diesel::result::Error> {
+    pub fn get_all(conn: &mut PgConnection) -> Result<Vec<Version>, diesel::result::Error> {
         use crate::schema::versions::dsl::*;
         versions.load::<Version>(conn)
     }
 
-    pub fn get_by_id(id_to_search: String, conn: &mut SqliteConnection) -> Option<Version> {
+    pub fn get_by_id(id_to_search: String, conn: &mut PgConnection) -> Option<Version> {
         use crate::schema::versions::dsl::*;
         use crate::schema::versions::dsl::id as v_id;
         versions.filter(v_id.eq(id_to_search))
@@ -90,7 +100,7 @@ impl Version{
             .unwrap()
     }
 
-    pub fn get_by_name(name_to_search: String, conn: &mut SqliteConnection) -> Option<Version> {
+    pub fn get_by_name(name_to_search: String, conn: &mut PgConnection) -> Option<Version> {
         use crate::schema::versions::dsl::*;
         use crate::schema::versions::dsl::name as v_name;
         versions.filter(v_name.eq(name_to_search))
