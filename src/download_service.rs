@@ -1,5 +1,5 @@
 use std::collections::{HashMap};
-use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use diesel::PgConnection;
 use serde::Deserialize;
 use serde_json::Value;
@@ -37,7 +37,7 @@ pub fn download_current_plugins(){
                                                              data_entity.clone(), conn);
             if inserted_data.is_ok() {
                 insert_or_update_version_entities(updated_plugin.clone(), inserted_data.unwrap(),
-                                                  data_to_insert.versions.clone(), conn, data_to_insert.readme.clone());
+                                                  data_to_insert.versions.clone(), conn, data_to_insert);
             }
 
             return;
@@ -48,7 +48,7 @@ pub fn download_current_plugins(){
                                                                  data_entity.clone(), conn);
                 if inserted_data.is_ok(){
                     insert_or_update_version_entities(plugin_inserted.clone(), inserted_data
-                        .unwrap(), data_to_insert.versions.clone(), conn, data_to_insert.readme.clone());
+                        .unwrap(), data_to_insert.versions.clone(), conn, data_to_insert);
                 }
             }
         }
@@ -77,17 +77,19 @@ fn insert_or_update_version_entities(updated_plugin: crate::entities::plugin::Pl
                                      data_to_insert: crate::entities::data::Data,
                                      versions: Option<HashMap<String, Version>>,
                                      conn: &mut PgConnection,
-                                     readme: Option<String>) {
+                                     data_from_json: Data) {
    if let Some(map) = versions{
        map.iter().for_each(|(_,val)|{
 
            let mut time = NaiveDateTime::new(NaiveDate::from_ymd_opt(1970, 1, 1).unwrap(),
                                              NaiveTime::from_hms_opt(0, 0, 0).unwrap());
-           match val.time.clone() {
-                Some(..) => {
-                    let time_1 = val.time.clone().unwrap().parse::<NaiveDate>().unwrap();
-                    let n_time:NaiveDateTime = time_1.and_hms_opt(0,0,0).unwrap();
-                    time = n_time;
+
+           match &data_from_json.time {
+                Some(t) => {
+                    if t.contains_key(val.version.clone().unwrap().as_str()){
+                        let time_1 = t.get(val.version.clone().unwrap().as_str()).unwrap().clone();
+                        time = time_1.naive_utc();
+                    }
                 },
                 None => {
                 }
@@ -104,7 +106,7 @@ fn insert_or_update_version_entities(updated_plugin: crate::entities::plugin::Pl
            let key = get_version_key(updated_plugin.name.clone(),
                            val
                                .version.clone().unwrap());
-           let opt_version_image = get_image_from_readme(readme.clone());
+           let opt_version_image = get_image_from_readme(data_from_json.readme.clone());
               let version_to_insert = crate::entities::version::Version::new(get_version_key(updated_plugin.name.clone(),
                                                                                              val
                                                                                                  .version.clone().unwrap()),
@@ -120,7 +122,8 @@ fn insert_or_update_version_entities(updated_plugin: crate::entities::plugin::Pl
                                                                             opt_rep_url,
               Some(val.keywords.clone().unwrap_or(vec![]).join(",")),
                                                                              opt_version_image,
-                                                                             readme.clone()
+                                                                             data_from_json.readme
+                                                                                 .clone()
               );
               match crate::entities::version::Version::get_by_id(key, conn){
                 Some(..) => {
@@ -200,6 +203,7 @@ pub struct Data {
     versions: Option<HashMap<String, Version>>,
     license: Option<String>,
     readme: Option<String>,
+    time: Option<HashMap<String, DateTime<Utc>>>
 }
 
 #[derive(Deserialize, Debug, Default, Clone)]
@@ -209,7 +213,6 @@ pub struct Version {
     name: Option<String>,
     version: Option<String>,
     description: Option<String>,
-    time: Option<String>,
     author: Option<AuthorType>,
     contributors: Option<Contributor>,
     license: Option<String>,
