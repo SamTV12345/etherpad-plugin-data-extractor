@@ -1,6 +1,6 @@
 use actix_web::web::Query;
 use chrono::{NaiveDateTime};
-use diesel::{Insertable, Queryable, QueryableByName, RunQueryDsl, PgConnection, AsChangeset, OptionalExtension, JoinOnDsl, TextExpressionMethods, Table, BoolExpressionMethods, NullableExpressionMethods};
+use diesel::{Insertable, Queryable, QueryableByName, RunQueryDsl, PgConnection, AsChangeset, OptionalExtension, JoinOnDsl, TextExpressionMethods, Table, BoolExpressionMethods, NullableExpressionMethods, debug_query};
 use diesel::dsl::{max};
 use serde::{Deserialize, Serialize};
 use crate::schema::plugins;
@@ -85,53 +85,72 @@ impl Plugin {
             .group_by(v2.field(versions_dsl::name));
 
         let conn = &mut crate::db::establish_connection();
-        let mut plugins_query = plugins
+        let mut _plugins_query = plugins
             .inner_join(data_table.on(name.eq(data_dsl::plugin_name)))
             .left_join(v1.on(name.like(v1.field(versions_dsl::name))))
             .filter(v1.field(versions_dsl::name).is_null()
                         .or(v1.field(versions_dsl::id).nullable().eq_any(subquery)))
-            .into_boxed();
+            .clone();
+
+        let mut count_query = _plugins_query.clone().into_boxed();
+        let mut plugins_query = _plugins_query.clone().into_boxed();
 
         if let Some(q) = query.official.clone() {
             plugins_query = plugins_query.filter(official.eq(q));
+            count_query = count_query.filter(official.eq(q));
         }
 
         if let Some(q) = &query.query {
             plugins_query = plugins_query.filter(name.like(format!("%{}%", q)));
+            count_query = count_query.filter(name.like(format!("%{}%", q)));
         }
 
         if let Some(p) = &query.last_plugin_name {
             plugins_query = plugins_query.filter(name.gt(p));
+            count_query = count_query.filter(name.gt(p));
         }
 
         match query.page_size {
-            Some(p) => plugins_query = plugins_query.limit(p as i64),
-            None => plugins_query = plugins_query.limit(50)
+            Some(p) => {
+                plugins_query = plugins_query.limit(p as i64);
+                count_query = count_query.limit(p as i64);
+            },
+            None => {
+                plugins_query = plugins_query.limit(50);
+                count_query = count_query.limit(50);
+            }
         }
 
         match &query.order {
             None => {
                 plugins_query = plugins_query.order(downloads.desc());
+                count_query = count_query.order(downloads.desc());
             }
             Some(q) => {
                 match q {
                     SortOrder::DownloadsASC => {
-                        plugins_query = plugins_query.order(data_dsl::downloads.asc());
+                        plugins_query = plugins_query.order(downloads.asc());
+                        count_query = count_query.order(downloads.asc());
                     }
                     SortOrder::DownloadsDESC => {
-                        plugins_query = plugins_query.order(data_dsl::downloads.desc());
+                        plugins_query = plugins_query.order(downloads.desc());
+                        count_query = count_query.order(downloads.desc());
                     }
                     SortOrder::CreatedASC => {
                         plugins_query = plugins_query.order(time.asc());
+                        count_query = count_query.order(time.asc());
                     }
                     SortOrder::CreatedDESC => {
                         plugins_query = plugins_query.order(time.desc());
+                        count_query = count_query.order(time.desc());
                     }
                     SortOrder::UpdatedASC => {
                         plugins_query = plugins_query.order(v1.field(versions_dsl::time).asc());
+                        count_query = count_query.order(v1.field(versions_dsl::time).asc());
                     }
                     SortOrder::UpdatedDESC => {
                         plugins_query = plugins_query.order(v1.field(versions_dsl::time).desc());
+                        count_query = count_query.order(v1.field(versions_dsl::time).desc());
                     }
                 }
             }
@@ -139,8 +158,8 @@ impl Plugin {
 
         let res = plugins_query.load::<(Plugin, Data, Option<Version>)>(conn)
             .unwrap();
-
-        let total_plugins = Self::get_total_count().await;
+        //println!("{}",debug_query(&count_query.select(data_dsl::id).count()));
+        let total_plugins = count_query.select(data_dsl::id).count().load::<i64>(conn).unwrap()[0];
         let total_downloads = Data::get_total_downloads(conn).await;
         let max_downloads = Data::get_lib_with_highest_download(conn).await.unwrap_or(0);
         let metadata = PluginMetadata {
@@ -158,9 +177,11 @@ impl Plugin {
                 popularity_score: d.downloads as f32/ max_downloads as f32,
                 author: v.clone().map_or("".to_string(), |v| v.author_name),
                 author_email: v.clone().map_or("".to_string(), |v| v.author_email),
-                keywords: v.clone().map_or(vec![], |v| v.author_email.split(",").map(|s| s.to_string()).collect::<Vec<String>>()),
+                keywords: v.clone().map_or(vec![], |v| v.keywords.unwrap_or("".to_string()).split(",")
+                    .map(|s| s.to_string()).collect::<Vec<String>>()),
                 image: v.clone().map_or(None, |v| v.image),
-                readme: v.clone().map_or(None, |v| v.readme)
+                readme: v.clone().map_or(None, |v| v.readme),
+                license: v.clone().map_or(None, |v| v.license),
             }}).collect::<Vec<PluginDto>>();
 
         return PluginResponse {
@@ -170,7 +191,7 @@ impl Plugin {
     }
 
 
-    async fn get_total_count() -> i64 {
+    pub async fn get_total_count() -> i64 {
         use crate::schema::plugins::dsl::*;
 
         let res = plugins
