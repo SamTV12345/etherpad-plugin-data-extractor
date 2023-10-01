@@ -88,7 +88,7 @@ impl Plugin {
         let mut _plugins_query = plugins
             .inner_join(data_table.on(name.eq(data_dsl::plugin_name)))
             .left_join(v1.on(name.like(v1.field(versions_dsl::name))))
-            .filter(v1.field(versions_dsl::name).is_null()
+            .filter(v1.field(versions_dsl::id).is_null()
                         .or(v1.field(versions_dsl::id).nullable().eq_any(subquery)))
             .clone();
 
@@ -96,13 +96,17 @@ impl Plugin {
         let mut plugins_query = _plugins_query.clone().into_boxed();
 
         if let Some(q) = query.official.clone() {
-            plugins_query = plugins_query.filter(official.eq(q));
-            count_query = count_query.filter(official.eq(q));
+            if q {
+                plugins_query = plugins_query.filter(official.eq(q));
+                count_query = count_query.filter(official.eq(q));
+            }
         }
 
         if let Some(q) = &query.query {
-            plugins_query = plugins_query.filter(name.like(format!("%{}%", q)));
-            count_query = count_query.filter(name.like(format!("%{}%", q)));
+            if q.len()>0 {
+                plugins_query = plugins_query.filter(name.like(format!("%{}%", q)));
+                count_query = count_query.filter(name.like(format!("%{}%", q)));
+            }
         }
 
         if let Some(p) = &query.last_plugin_name {
@@ -124,33 +128,26 @@ impl Plugin {
         match &query.order {
             None => {
                 plugins_query = plugins_query.order(downloads.desc());
-                count_query = count_query.order(downloads.desc());
             }
             Some(q) => {
                 match q {
                     SortOrder::DownloadsASC => {
                         plugins_query = plugins_query.order(downloads.asc());
-                        count_query = count_query.order(downloads.asc());
                     }
                     SortOrder::DownloadsDESC => {
                         plugins_query = plugins_query.order(downloads.desc());
-                        count_query = count_query.order(downloads.desc());
                     }
                     SortOrder::CreatedASC => {
                         plugins_query = plugins_query.order(time.asc());
-                        count_query = count_query.order(time.asc());
                     }
                     SortOrder::CreatedDESC => {
                         plugins_query = plugins_query.order(time.desc());
-                        count_query = count_query.order(time.desc());
                     }
                     SortOrder::UpdatedASC => {
                         plugins_query = plugins_query.order(v1.field(versions_dsl::time).asc());
-                        count_query = count_query.order(v1.field(versions_dsl::time).asc());
                     }
                     SortOrder::UpdatedDESC => {
                         plugins_query = plugins_query.order(v1.field(versions_dsl::time).desc());
-                        count_query = count_query.order(v1.field(versions_dsl::time).desc());
                     }
                 }
             }
@@ -158,7 +155,6 @@ impl Plugin {
 
         let res = plugins_query.load::<(Plugin, Data, Option<Version>)>(conn)
             .unwrap();
-        //println!("{}",debug_query(&count_query.select(data_dsl::id).count()));
         let total_plugins = count_query.select(data_dsl::id).count().load::<i64>(conn).unwrap()[0];
         let total_downloads = Data::get_total_downloads(conn).await;
         let max_downloads = Data::get_lib_with_highest_download(conn).await.unwrap_or(0);
@@ -167,6 +163,7 @@ impl Plugin {
             total_downloads: total_downloads as i32,
             page_size: res.len() as i32,
         };
+
         let dto = res.iter().map(|(p, d, v)| {
             PluginDto {
                 name: p.name.clone(),
@@ -177,8 +174,7 @@ impl Plugin {
                 popularity_score: d.downloads as f32/ max_downloads as f32,
                 author: v.clone().map_or("".to_string(), |v| v.author_name),
                 author_email: v.clone().map_or("".to_string(), |v| v.author_email),
-                keywords: v.clone().map_or(vec![], |v| v.keywords.unwrap_or("".to_string()).split(",")
-                    .map(|s| s.to_string()).collect::<Vec<String>>()),
+                keywords: v.clone().map_or("".to_string(), |v| v.keywords.unwrap_or("".to_string())),
                 image: v.clone().map_or(None, |v| v.image),
                 readme: v.clone().map_or(None, |v| v.readme),
                 license: v.clone().map_or(None, |v| v.license),

@@ -2,3 +2,6 @@
 DROP TABLE plugins;
 DROP TABLE datas;
 DROP TABLE versions;
+
+DROP INDEX versions_name;
+DROP INDEX datas_name;

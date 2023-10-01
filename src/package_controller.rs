@@ -21,7 +21,7 @@ pub struct PluginDto {
     pub author_email: String,
     pub official: bool,
     pub popularity_score: f32,
-    pub keywords: Vec<String>,
+    pub keywords: String,
     pub image: Option<String>,
     pub readme: Option<String>,
     pub license: Option<String>,
