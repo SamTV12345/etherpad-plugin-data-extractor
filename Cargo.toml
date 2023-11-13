@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 clokwerk= "0.4.0"
-serde = {version="1.0.189", features = ["derive"]}
+serde = {version="1.0.192", features = ["derive"]}
 reqwest = {version="0.11.22", features = ["blocking", "json", "async-compression", "rustls"]}
 chrono = { version = "0.4", default-features = false, features = ["serde"] }
 libsqlite3-sys = {version = "0.26.0", features = ["bundled"], optional = true}
