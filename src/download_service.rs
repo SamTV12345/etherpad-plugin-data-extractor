@@ -10,11 +10,62 @@ use crate::constants::REPO_SYNC;
 use crate::db::establish_connection;
 use crate::entities::official_repository::OfficialRepository;
 use crate::entities::timestamp_sync::TimestampSync;
+use changes_stream2::{ChangesStream, Event};
+use futures_util::StreamExt;
+use crate::api::download_stat::DownloadStat;
+use crate::api::replicate_response::ReplicateResponse;
+use crate::{db, download_service};
+use crate::entities::plugin_shorts::PluginShorts;
+use crate::entities::sequence::Sequence;
 
-fn load_changes_with_docs(seq: &mut i64) {
-    *seq = *seq -1;
-    reqwest::blocking::get(format!("https://replicate.npmjs.com/_changes?since={}&descending=false&include_docs=true", seq))
-        .unwrap().json::<HashMap<String, Value>>().unwrap();
+pub fn load_changes_with_docs(mut seq: i64, conn: &mut SqliteConnection) {
+    seq = seq -1;
+    println!("Loading changes with docs since: {}", seq);
+    let data = reqwest::blocking::get(format!("https://replicate.npmjs\
+    .com/_changes?descending=false&since={}&include_docs=true", seq)).unwrap()
+        .json::<ReplicateResponse>().unwrap();
+    if let Some(data) = data.results.first() {
+        let latest_version = data.doc.versions.get(&data.doc.dist_tags.latest.clone());
+        match latest_version {
+            Some(v)=>{
+                if let Some(deprecated) = v.deprecated {
+                    if deprecated {
+                        println!("{} is deprecated", data.doc.name);
+                        PluginShorts::get_by_name(data.doc.name.clone(), conn).map(|plugin| {
+                            let _ = PluginShorts::delete(plugin, conn);
+                        });
+                    }
+                } else {
+                    println!("{} is not deprecated", data.doc.name);
+                    let found_plugin = PluginShorts::get_by_name(data.doc.name.clone(), conn);
+                    let is_plugin_official = OfficialRepository::get_by_id(data.doc.name.clone(), conn);
+                    let official = is_plugin_official.is_some();
+                    let plugin = PluginShorts::new(data.doc.name.clone(), data.doc.description.clone(),
+                                                   data.doc.time.modified.clone(), Option::from(data.doc.dist_tags.latest.clone()),
+                                                   official, None);
+                    match found_plugin {
+                        Some(p)=>{
+                            let _ = PluginShorts::update(plugin, conn);
+                        },
+                        None=>{
+                            let _ = PluginShorts::insert(plugin, conn);
+                        }
+                    }
+                }
+            },
+            None=>{
+                println!("No latest version found");
+            }
+        }
+    }
+}
+
+
+fn load_download_stats(plugin_names:  Vec<String>) {
+    let plugin_lists = plugin_names.join(",");
+    let res = reqwest::blocking::get(format!("https://api.npmjs.org/downloads/point/last-month/{}", plugin_lists))
+        .unwrap().json::<HashMap<String, DownloadStat>>().unwrap();
+
 }
 
 
@@ -45,28 +96,72 @@ fn days_between(dt1: NaiveDateTime, dt2: NaiveDateTime) -> i64 {
     duration.num_days()
 }
 
-pub(crate) async fn start_sync() {
 
+pub async fn get_from_change_api(conn: &mut  SqliteConnection) {
+    let mut url = "https://replicate.npmjs.com/_changes?include_docs=false".to_string();
+    if let Some(found_seq) = Sequence::get_by_id("sequence".to_string(), conn) {
+        url.push_str(&format!("&since={}", found_seq.val));
+    }
+
+    let mut changes = ChangesStream::new(url).await.unwrap();
+    let mut ticker: i64 = 0;
+    while let Some(event) = changes.next().await {
+        match event {
+            Ok(Event::Change(change)) => {
+                ticker += 1;
+                if change.id.starts_with("ep_") && change.deleted == true {
+                    println!("Deleted: {}", change.id);
+                    PluginShorts::get_by_name(change.id.clone(), conn).map(|plugin| {
+                        let _ = PluginShorts::delete(plugin, conn);
+                    });
+                } else if change.id.starts_with("ep_") {
+                    load_changes_with_docs(change.seq.as_i64().unwrap(),
+                    conn)
+                }
+
+                let sequence_num = change.seq.as_i64().unwrap();
+                if ticker % 1000 == 0 {
+                    let seq_id = Sequence::new("sequence".to_string(), sequence_num);
+                    if let Some(_) = Sequence::get_by_id("sequence".to_string(),
+                    conn) {
+                        let _ = Sequence::update(seq_id, conn);
+                    } else {
+                        Sequence::insert(seq_id, conn).unwrap();
+                    }
+                }
+            },
+            Ok(Event::Finished(finished)) => println!("Finished: {}", finished.last_seq),
+            Err(err) => println!("Error: {:?}", err),
+        }
+    }
+}
+
+pub(crate) async fn start_sync() {
+    let mut sqlite_conn = establish_connection();
+    start_sync_from_github(&mut sqlite_conn).await;
+    get_from_change_api(&mut sqlite_conn).await;
+}
+
+
+pub async fn start_sync_from_github(conn: &mut SqliteConnection) {
+    let found_timestamp = TimestampSync::get_by_id(REPO_SYNC, conn).unwrap();
     let now_utc: DateTime<Utc> = Utc::now();
     let naive_now: NaiveDateTime = now_utc.naive_utc();
-    let mut sqlite_conn = establish_connection();
-
-    let found_timestamp = TimestampSync::get_by_id(REPO_SYNC, &mut sqlite_conn).unwrap();
 
     if let Some(ft) = found_timestamp {
         if days_between(naive_now, ft.timestamp) > 1 {
-            handle_repository_sync(&mut sqlite_conn).await;
+            handle_repository_sync(conn).await;
             let _ = TimestampSync::insert(TimestampSync{
                 id: REPO_SYNC.to_string(),
                 timestamp: naive_now,
-            }, &mut sqlite_conn);
+            }, conn);
         }
     } else {
-        handle_repository_sync(&mut sqlite_conn).await;
+        handle_repository_sync(conn).await;
         let _ = TimestampSync::insert(TimestampSync{
             id: REPO_SYNC.to_string(),
             timestamp: naive_now,
-        }, &mut sqlite_conn);
+        }, conn);
     }
 }
 

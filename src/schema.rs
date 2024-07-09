@@ -27,12 +27,30 @@ diesel::table! {
 }
 
 diesel::table! {
+    plugin_shorts (name) {
+        name -> Text,
+        description -> Nullable<Text>,
+        time_downloaded -> Nullable<Text>,
+        version -> Text,
+        official -> Bool,
+        downloads -> Nullable<Integer>,
+    }
+}
+
+diesel::table! {
     plugins (name) {
         name -> Text,
         description -> Text,
         time -> Timestamp,
         version -> Text,
         official -> Bool,
+    }
+}
+
+diesel::table! {
+    sequences (id) {
+        id -> Text,
+        val -> BigInt,
     }
 }
 
@@ -70,7 +88,9 @@ diesel::allow_tables_to_appear_in_same_query!(
     datas,
     keywords,
     officialRepositories,
+    plugin_shorts,
     plugins,
+    sequences,
     timestamp_sync,
     versions,
 );

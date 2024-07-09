@@ -57,3 +57,22 @@ CREATE TABLE timestamp_sync(
        id TEXT NOT NULL PRIMARY KEY,
        timestamp Timestamp NOT NULL
 );
+
+
+CREATE TABLE sequences(
+    id TEXT NOT NULL PRIMARY KEY,
+    val BigInt NOT NULL
+);
+
+
+CREATE TABLE plugin_shorts(
+    name TEXT NOT NULL PRIMARY KEY,
+    description TEXT,
+    time_downloaded TEXT,
+    version TEXT NOT NULL,
+    official BOOLEAN NOT NULL,
+    downloads INTEGER NULL
+);
+
+
+INSERT OR IGNORE INTO sequences(id, val) VALUES('sequence', 4724302);

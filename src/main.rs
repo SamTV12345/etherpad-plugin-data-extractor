@@ -1,5 +1,7 @@
+use std::sync::Mutex;
 use std::thread;
 use actix_web::{App, HttpServer, Scope};
+use changes_stream2::{ChangesStream, Event};
 use clokwerk::{Scheduler, TimeUnits};
 use diesel::{RunQueryDsl, sql_query};
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
@@ -12,6 +14,11 @@ mod package_controller;
 mod schema;
 mod entities;
 mod download_service;
+mod api;
+
+use futures_util::{StreamExt, TryStreamExt};
+use crate::entities::plugin_shorts::PluginShorts;
+use crate::entities::sequence::Sequence;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {

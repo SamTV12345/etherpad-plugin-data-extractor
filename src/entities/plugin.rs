@@ -195,4 +195,13 @@ impl Plugin {
             .get_result::<i64>(&mut crate::db::establish_connection());
         res.unwrap()
     }
+
+    pub async fn delete_plugin_by_name(plugin_name_search: String) {
+        use crate::schema::plugins::dsl::*;
+        let conn = &mut crate::db::establish_connection();
+        diesel::delete(plugins)
+            .filter(name.eq(plugin_name_search))
+            .execute(conn)
+            .unwrap();
+    }
 }

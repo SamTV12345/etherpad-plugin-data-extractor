@@ -1,9 +1,9 @@
-use diesel::{AsChangeset, ExpressionMethods, Insertable, Queryable, QueryableByName, RunQueryDsl};
+use diesel::{AsChangeset, ExpressionMethods, Insertable, OptionalExtension, Queryable, QueryableByName, RunQueryDsl};
 use serde::{Deserialize, Serialize};
 use diesel::SqliteConnection;
 use crate::schema::officialRepositories as ofRepo;
 use diesel::sql_types::Text;
-
+use diesel::QueryDsl;
 #[derive(Serialize, Deserialize, Queryable,Insertable, QueryableByName, Clone)]
 #[serde(rename_all = "camelCase")]
 #[diesel(table_name=ofRepo)]
@@ -37,5 +37,13 @@ impl OfficialRepository {
         } else {
             return Err(result.err().unwrap())
         }
+    }
+
+    pub fn get_by_id(id_to_search: String, conn: &mut SqliteConnection) -> Option<OfficialRepository> {
+        use crate::schema::officialRepositories::dsl::*;
+        officialRepositories.filter(id.eq(id_to_search))
+            .first::<OfficialRepository>(conn)
+            .optional()
+            .unwrap()
     }
 }
