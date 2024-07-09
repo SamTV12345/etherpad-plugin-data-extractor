@@ -27,7 +27,6 @@ async fn main() -> std::io::Result<()> {
     }
 
     thread::spawn(|| {
-        download_current_plugins();
 
         let mut scheduler = Scheduler::new();
         scheduler.every(1.day()).run(|| {
@@ -36,6 +35,7 @@ async fn main() -> std::io::Result<()> {
         });
     }
     );
+    download_service::start_sync().await;
 
     HttpServer::new(move||{
         App::new()

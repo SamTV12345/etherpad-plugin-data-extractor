@@ -8,7 +8,7 @@ diesel::table! {
         _rev -> Text,
         name -> Text,
         license -> Nullable<Text>,
-        downloads -> Int4,
+        downloads -> Integer,
     }
 }
 
@@ -21,12 +21,25 @@ diesel::table! {
 }
 
 diesel::table! {
+    officialRepositories (id) {
+        id -> Text,
+    }
+}
+
+diesel::table! {
     plugins (name) {
         name -> Text,
         description -> Text,
         time -> Timestamp,
         version -> Text,
         official -> Bool,
+    }
+}
+
+diesel::table! {
+    timestamp_sync (id) {
+        id -> Text,
+        timestamp -> Timestamp,
     }
 }
 
@@ -56,6 +69,8 @@ diesel::joinable!(versions -> datas (data_id));
 diesel::allow_tables_to_appear_in_same_query!(
     datas,
     keywords,
+    officialRepositories,
     plugins,
+    timestamp_sync,
     versions,
 );

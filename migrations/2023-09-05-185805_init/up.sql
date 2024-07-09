@@ -44,5 +44,16 @@ CREATE TABLE keywords(
     FOREIGN KEY (version_id) REFERENCES versions(id)
 );
 
+
+CREATE TABLE officialRepositories(
+    id TEXT NOT  NULL PRIMARY KEY
+);
+
 CREATE INDEX versions_name ON versions(name);
 CREATE INDEX datas_name ON datas(name);
+
+
+CREATE TABLE timestamp_sync(
+       id TEXT NOT NULL PRIMARY KEY,
+       timestamp Timestamp NOT NULL
+);

@@ -1,4 +1,4 @@
-use std::collections::{HashMap};
+use std::collections::{HashMap, HashSet};
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use serde::Deserialize;
 use serde_json::Value;
@@ -6,27 +6,94 @@ use crate::entities::plugin::Plugin as PluginEntity;
 use crate::entities::data::Data as DataEntity;
 use uuid::Uuid;
 use diesel::SqliteConnection;
-use octocrab::params;
+use crate::constants::REPO_SYNC;
+use crate::db::establish_connection;
+use crate::entities::official_repository::OfficialRepository;
+use crate::entities::timestamp_sync::TimestampSync;
 
-
-fn load_changes_with_docs(seq: &mut i64, ) {
+fn load_changes_with_docs(seq: &mut i64) {
     *seq = *seq -1;
     reqwest::blocking::get(format!("https://replicate.npmjs.com/_changes?since={}&descending=false&include_docs=true", seq))
         .unwrap().json::<HashMap<String, Value>>().unwrap();
 }
 
 
-async fn get_ether_repository_list(page: i32) {
-    let result = octocrab::instance().orgs("ether").list_repos().per_page(100).page(page as u32)
+async fn get_ether_repository_list(page: i32) -> Vec<OfficialRepository> {
+    let result = octocrab::instance()
+        .orgs("ether")
+        .list_repos()
+        .per_page(100)
+        .page(page as u32)
         .send()
-        .await.unwrap();
+        .await
+        .unwrap();
+    let mut vec_of_repos = Vec::new();
+    for rp in result {
+        vec_of_repos.push(OfficialRepository{
+            id: rp.name,
+        })
+    }
+    return vec_of_repos;
+}
 
+fn days_between(dt1: NaiveDateTime, dt2: NaiveDateTime) -> i64 {
+    let duration = if dt1 > dt2 {
+        dt1.signed_duration_since(dt2)
+    } else {
+        dt2.signed_duration_since(dt1)
+    };
+    duration.num_days()
+}
 
+pub(crate) async fn start_sync() {
+
+    let now_utc: DateTime<Utc> = Utc::now();
+    let naive_now: NaiveDateTime = now_utc.naive_utc();
+    let mut sqlite_conn = establish_connection();
+
+    let found_timestamp = TimestampSync::get_by_id(REPO_SYNC, &mut sqlite_conn).unwrap();
+
+    if let Some(ft) = found_timestamp {
+        if days_between(naive_now, ft.timestamp) > 1 {
+            handle_repository_sync(&mut sqlite_conn).await;
+            let _ = TimestampSync::insert(TimestampSync{
+                id: REPO_SYNC.to_string(),
+                timestamp: naive_now,
+            }, &mut sqlite_conn);
+        }
+    } else {
+        handle_repository_sync(&mut sqlite_conn).await;
+        let _ = TimestampSync::insert(TimestampSync{
+            id: REPO_SYNC.to_string(),
+            timestamp: naive_now,
+        }, &mut sqlite_conn);
+    }
 }
 
 
-fn save_in_db(seq: i64) {
+async fn handle_repository_sync(sqlite_conn: &mut SqliteConnection) {
+    let mut first_page = get_ether_repository_list(1).await;
+    let mut second_page = get_ether_repository_list(2).await;
 
+    first_page.append(&mut second_page);
+    let saved_repos = OfficialRepository::list_all_repos(sqlite_conn).unwrap();
+    let saved_repos_hashed: HashSet<String> = saved_repos.iter().map(|e|e.id.clone()).collect();
+
+    let online_repos: HashSet<String> = first_page.iter().map(|e|e.id.clone()).collect();
+
+    first_page.iter().for_each(|p| {
+        let is_contained = saved_repos_hashed.contains(&p.id);
+        if !is_contained {
+            OfficialRepository::insert(p.id.clone(), sqlite_conn).unwrap();
+        }
+    });
+
+    saved_repos.iter().for_each(|p| {
+        let is_contained = online_repos.contains(&p.id);
+        if !is_contained {
+            OfficialRepository::delete(p.id.clone(), sqlite_conn).unwrap();
+        }
+    });
 }
 
 

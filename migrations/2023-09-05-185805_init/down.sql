@@ -5,3 +5,5 @@ DROP TABLE versions;
 
 DROP INDEX versions_name;
 DROP INDEX datas_name;
+DROP TABLE officialRepositories;
+DROP TABLE timestamp_sync;
