@@ -1,10 +1,11 @@
 use std::env;
-use diesel::{Connection, PgConnection};
+use diesel::{Connection};
+use diesel::prelude::SqliteConnection;
 use crate::constants::{DATABASE_URL};
 
-pub fn establish_connection() -> PgConnection {
+pub fn establish_connection() -> SqliteConnection {
     let database_url = &get_database_url();
-    PgConnection::establish(database_url)
+    SqliteConnection::establish(database_url)
         .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
 }
 

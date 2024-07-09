@@ -1,11 +1,34 @@
 use std::collections::{HashMap};
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
-use diesel::PgConnection;
 use serde::Deserialize;
 use serde_json::Value;
 use crate::entities::plugin::Plugin as PluginEntity;
 use crate::entities::data::Data as DataEntity;
 use uuid::Uuid;
+use diesel::SqliteConnection;
+use octocrab::params;
+
+
+fn load_changes_with_docs(seq: &mut i64, ) {
+    *seq = *seq -1;
+    reqwest::blocking::get(format!("https://replicate.npmjs.com/_changes?since={}&descending=false&include_docs=true", seq))
+        .unwrap().json::<HashMap<String, Value>>().unwrap();
+}
+
+
+async fn get_ether_repository_list(page: i32) {
+    let result = octocrab::instance().orgs("ether").list_repos().per_page(100).page(page as u32)
+        .send()
+        .await.unwrap();
+
+
+}
+
+
+fn save_in_db(seq: i64) {
+
+}
+
 
 pub fn download_current_plugins(){
     let download_url = std::env::var("DOWNLOAD_URL")
@@ -57,7 +80,7 @@ pub fn download_current_plugins(){
 
 
 fn insert_or_update_data_entity(updated_plugin: crate::entities::plugin::Plugin, data_entity:
-DataEntity, conn: &mut PgConnection) -> Result<crate::entities::data::Data, ()>{
+DataEntity, conn: &mut SqliteConnection) -> Result<crate::entities::data::Data, ()>{
     match DataEntity::get_by_name(updated_plugin.name.clone(), &mut
         crate::db::establish_connection()){
         Some(..) => {
@@ -76,7 +99,7 @@ DataEntity, conn: &mut PgConnection) -> Result<crate::entities::data::Data, ()>{
 fn insert_or_update_version_entities(updated_plugin: crate::entities::plugin::Plugin,
                                      data_to_insert: crate::entities::data::Data,
                                      versions: Option<HashMap<String, Version>>,
-                                     conn: &mut PgConnection,
+                                     conn: &mut SqliteConnection,
                                      data_from_json: Data) {
    if let Some(map) = versions{
        map.iter().for_each(|(_,val)|{

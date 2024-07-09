@@ -1,5 +1,5 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
-use diesel::{Insertable, OptionalExtension, Queryable, QueryableByName, RunQueryDsl, PgConnection};
+use diesel::{Insertable, OptionalExtension, Queryable, QueryableByName, RunQueryDsl, SqliteConnection};
 use serde::{Deserialize, Serialize};
 use crate::entities::data::Data;
 use crate::schema::versions;
@@ -68,7 +68,7 @@ impl Version{
         }
     }
 
-    pub fn insert(version_to_insert: Version, conn: &mut PgConnection) -> Result<Version,
+    pub fn insert(version_to_insert: Version, conn: &mut SqliteConnection) -> Result<Version,
         diesel::result::Error> {
         use crate::schema::versions::dsl::*;
         diesel::insert_into(versions)
@@ -76,7 +76,7 @@ impl Version{
             .get_result(conn)
     }
 
-    pub fn update(version_to_insert : Version, conn: &mut PgConnection, key: String) ->
+    pub fn update(version_to_insert : Version, conn: &mut SqliteConnection, key: String) ->
                                                                                          Version {
         use crate::schema::versions::dsl::*;
         diesel::update(versions)
@@ -86,12 +86,12 @@ impl Version{
             .unwrap()
     }
 
-    pub fn get_all(conn: &mut PgConnection) -> Result<Vec<Version>, diesel::result::Error> {
+    pub fn get_all(conn: &mut SqliteConnection) -> Result<Vec<Version>, diesel::result::Error> {
         use crate::schema::versions::dsl::*;
         versions.load::<Version>(conn)
     }
 
-    pub fn get_by_id(id_to_search: String, conn: &mut PgConnection) -> Option<Version> {
+    pub fn get_by_id(id_to_search: String, conn: &mut SqliteConnection) -> Option<Version> {
         use crate::schema::versions::dsl::*;
         use crate::schema::versions::dsl::id as v_id;
         versions.filter(v_id.eq(id_to_search))
@@ -100,7 +100,7 @@ impl Version{
             .unwrap()
     }
 
-    pub fn get_by_name(name_to_search: String, conn: &mut PgConnection) -> Option<Version> {
+    pub fn get_by_name(name_to_search: String, conn: &mut SqliteConnection) -> Option<Version> {
         use crate::schema::versions::dsl::*;
         use crate::schema::versions::dsl::name as v_name;
         versions.filter(v_name.eq(name_to_search))

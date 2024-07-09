@@ -1,6 +1,6 @@
 use actix_web::web::Query;
 use chrono::{NaiveDateTime};
-use diesel::{Insertable, Queryable, QueryableByName, RunQueryDsl, PgConnection, AsChangeset, OptionalExtension, JoinOnDsl, TextExpressionMethods, Table, BoolExpressionMethods, NullableExpressionMethods, debug_query};
+use diesel::{Insertable, Queryable, QueryableByName, RunQueryDsl, AsChangeset, OptionalExtension, JoinOnDsl, TextExpressionMethods, Table, BoolExpressionMethods, NullableExpressionMethods, debug_query, SqliteConnection};
 use diesel::dsl::{max};
 use serde::{Deserialize, Serialize};
 use crate::schema::plugins;
@@ -39,7 +39,7 @@ impl Plugin {
         }
     }
 
-    pub fn insert(plugin: Plugin, conn: &mut PgConnection) -> Result<Plugin,
+    pub fn insert(plugin: Plugin, conn: &mut SqliteConnection) -> Result<Plugin,
         diesel::result::Error> {
         use crate::schema::plugins::dsl::*;
         diesel::insert_into(plugins)
@@ -47,7 +47,7 @@ impl Plugin {
             .get_result(conn)
     }
 
-    pub fn update(plugin: Plugin, conn: &mut PgConnection) -> Result<Plugin,
+    pub fn update(plugin: Plugin, conn: &mut SqliteConnection) -> Result<Plugin,
         diesel::result::Error> {
         use crate::schema::plugins::dsl::*;
         diesel::update(plugins)
@@ -56,12 +56,12 @@ impl Plugin {
             .get_result(conn)
     }
 
-    pub fn get_all(conn: &mut PgConnection) -> Result<Vec<Plugin>, diesel::result::Error> {
+    pub fn get_all(conn: &mut SqliteConnection) -> Result<Vec<Plugin>, diesel::result::Error> {
         use crate::schema::plugins::dsl::*;
         plugins.load::<Plugin>(conn)
     }
 
-    pub fn get_by_name(name_to_search: String, conn: &mut PgConnection) -> Option<Plugin> {
+    pub fn get_by_name(name_to_search: String, conn: &mut SqliteConnection) -> Option<Plugin> {
         use crate::schema::plugins::dsl::*;
         plugins.filter(name.eq(name_to_search))
             .first::<Plugin>(conn)
