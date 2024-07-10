@@ -15,6 +15,7 @@ use futures_util::StreamExt;
 use crate::api::download_stat::DownloadStat;
 use crate::api::replicate_response::ReplicateResponse;
 use crate::{db, download_service};
+use crate::entities::ep_changes::EPChange;
 use crate::entities::plugin_shorts::PluginShorts;
 use crate::entities::sequence::Sequence;
 
@@ -109,17 +110,27 @@ pub async fn get_from_change_api(conn: &mut  SqliteConnection) {
         match event {
             Ok(Event::Change(change)) => {
                 ticker += 1;
+                let sequence_num = change.seq.as_i64().unwrap();
                 if change.id.starts_with("ep_") && change.deleted == true {
                     println!("Deleted: {}", change.id);
                     PluginShorts::get_by_name(change.id.clone(), conn).map(|plugin| {
                         let _ = PluginShorts::delete(plugin, conn);
                     });
+                    let _ = EPChange::insert(EPChange{
+                        name: change.id,
+                        seq_id: sequence_num
+                    }, conn);
                 } else if change.id.starts_with("ep_") {
+                    let _ = EPChange::insert(EPChange{
+                        name: change.id,
+                        seq_id: sequence_num
+                    }, conn);
                     load_changes_with_docs(change.seq.as_i64().unwrap(),
-                    conn)
+                    conn);
                 }
 
-                let sequence_num = change.seq.as_i64().unwrap();
+
+
                 if ticker % 1000 == 0 {
                     let seq_id = Sequence::new("sequence".to_string(), sequence_num);
                     if let Some(_) = Sequence::get_by_id("sequence".to_string(),

@@ -13,6 +13,13 @@ diesel::table! {
 }
 
 diesel::table! {
+    ep_changes (name) {
+        name -> Text,
+        seq_id -> BigInt,
+    }
+}
+
+diesel::table! {
     keywords (id) {
         id -> Text,
         version_id -> Text,
@@ -86,6 +93,7 @@ diesel::joinable!(versions -> datas (data_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     datas,
+    ep_changes,
     keywords,
     officialRepositories,
     plugin_shorts,

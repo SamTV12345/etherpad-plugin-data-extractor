@@ -75,4 +75,13 @@ CREATE TABLE plugin_shorts(
 );
 
 
-INSERT OR IGNORE INTO sequences(id, val) VALUES('sequence', 4724302);
+INSERT OR IGNORE INTO sequences(id, val) VALUES('sequence', 9127252);
+
+CREATE TABLE ep_changes(
+  name TEXT NOT NULL PRIMARY KEY,
+  seq_id BIGINT NOT NULL
+);
+
+INSERT INTO ep_changes (name, seq_id) VALUES ('ep_collabticker', 6482999);
+INSERT INTO ep_changes (name, seq_id) VALUES ('ep_bootstrap', 6496551);
+INSERT INTO ep_changes (name, seq_id) VALUES ('ep_linote_markdown', 7105196);
