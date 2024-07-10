@@ -13,28 +13,39 @@ use crate::entities::timestamp_sync::TimestampSync;
 use changes_stream2::{ChangesStream, Event};
 use futures_util::StreamExt;
 use crate::api::download_stat::DownloadStat;
-use crate::api::replicate_response::ReplicateResponse;
-use crate::{db, download_service};
+use crate::api::replicate_response::{Deprecation, ReplicateResponse};
 use crate::entities::ep_changes::EPChange;
 use crate::entities::plugin_shorts::PluginShorts;
 use crate::entities::sequence::Sequence;
 
-pub fn load_changes_with_docs(mut seq: i64, conn: &mut SqliteConnection) {
+pub async fn load_changes_with_docs(mut seq: i64, conn: &mut SqliteConnection) {
     seq = seq -1;
     println!("Loading changes with docs since: {}", seq);
-    let data = reqwest::blocking::get(format!("https://replicate.npmjs\
-    .com/_changes?descending=false&since={}&include_docs=true", seq)).unwrap()
-        .json::<ReplicateResponse>().unwrap();
+    let data = reqwest::get(format!("https://replicate.npmjs\
+    .com/_changes?descending=false&since={}&include_docs=true&limit=1", seq)).await.unwrap()
+        .json::<ReplicateResponse>().await.unwrap();
     if let Some(data) = data.results.first() {
         let latest_version = data.doc.versions.get(&data.doc.dist_tags.latest.clone());
         match latest_version {
             Some(v)=>{
-                if let Some(deprecated) = v.deprecated {
-                    if deprecated {
-                        println!("{} is deprecated", data.doc.name);
-                        PluginShorts::get_by_name(data.doc.name.clone(), conn).map(|plugin| {
-                            let _ = PluginShorts::delete(plugin, conn);
-                        });
+                if let Some(deprecated) = &v.deprecated {
+                    match deprecated {
+                        Deprecation::String(s) => {
+                            if s == "deprecated" {
+                                println!("{} is deprecated", data.doc.name);
+                                PluginShorts::get_by_name(data.doc.name.clone(), conn).map(|plugin| {
+                                    let _ = PluginShorts::delete(plugin, conn);
+                                });
+                            }
+                        },
+                        Deprecation::Bool(b) =>{
+                            if *b {
+                                println!("{} is deprecated", data.doc.name);
+                                PluginShorts::get_by_name(data.doc.name.clone(), conn).map(|plugin| {
+                                    let _ = PluginShorts::delete(plugin, conn);
+                                });
+                            }
+                        }
                     }
                 } else {
                     println!("{} is not deprecated", data.doc.name);
@@ -42,7 +53,8 @@ pub fn load_changes_with_docs(mut seq: i64, conn: &mut SqliteConnection) {
                     let is_plugin_official = OfficialRepository::get_by_id(data.doc.name.clone(), conn);
                     let official = is_plugin_official.is_some();
                     let plugin = PluginShorts::new(data.doc.name.clone(), data.doc.description.clone(),
-                                                   data.doc.time.modified.clone(), Option::from(data.doc.dist_tags.latest.clone()),
+                                                   data.doc.dist_tags.latest.clone(),
+                                                   Option::from(data.doc.time.modified.clone()),
                                                    official, None);
                     match found_plugin {
                         Some(p)=>{
@@ -121,12 +133,13 @@ pub async fn get_from_change_api(conn: &mut  SqliteConnection) {
                         seq_id: sequence_num
                     }, conn);
                 } else if change.id.starts_with("ep_") {
+                    println!("New: {}", change.id);
                     let _ = EPChange::insert(EPChange{
                         name: change.id,
                         seq_id: sequence_num
                     }, conn);
                     load_changes_with_docs(change.seq.as_i64().unwrap(),
-                    conn);
+                                           conn).await;
                 }
 
 

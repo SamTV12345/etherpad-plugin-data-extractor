@@ -32,7 +32,14 @@ pub struct ReplicateResultDoc {
 pub struct ReplicateVersion {
     pub name: String,
     pub description: Option<String>,
-    pub deprecated: Option<bool>,
+    pub deprecated: Option<Deprecation>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Deprecation {
+    String(String),
+    Bool(bool)
 }
 
 #[derive(Serialize, Deserialize)]
