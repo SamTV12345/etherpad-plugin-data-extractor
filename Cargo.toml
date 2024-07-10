@@ -12,7 +12,7 @@ reqwest = {version= "0.12.5", features = ["blocking", "json",  "rustls-tls"]}
 chrono = { version = "0.4", default-features = false, features = ["serde"] }
 libsqlite3-sys = {version = "0.28.0", features = ["bundled"]}
 diesel_migrations = {version="2.0.0",features = ["sqlite"]}
-actix-web = {version="4.3.0", features=["rustls"]}
+actix-web = {version="4.8.0", features=["rustls"]}
 diesel = { version = "2.2.1", features = ["chrono", "r2d2", "sqlite", "returning_clauses_for_sqlite_3_35"] }
 serde_json = {version="1.0.107"}
 uuid = {version= "1.4.1", features=["serde", "v4"]}
