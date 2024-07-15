@@ -15,7 +15,7 @@ diesel_migrations = {version="2.0.0",features = ["sqlite"]}
 actix-web = {version="4.8.0", features=["rustls"]}
 diesel = { version = "2.2.1", features = ["chrono", "r2d2", "sqlite", "returning_clauses_for_sqlite_3_35"] }
 serde_json = {version="1.0.107"}
-uuid = {version= "1.4.1", features=["serde", "v4"]}
+uuid = {version= "1.10.0", features=["serde", "v4"]}
 regex = "1.9.6"
 octocrab = "0.38.0"
 changes-stream2 = "0.2"
